@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import "./App.css";
+import { useEffect } from "react"; // <-- linea agregada para backend integration
 
 /* App.js - GameTracker frontend
    - Sidebar always visible on desktop; collapsible on mobile via hamburger.
@@ -397,3 +398,50 @@ export default function App() {
     </div>
   );
 }
+(function attachBackendIntegration() {
+  try {
+    if (typeof window === "undefined" || typeof fetch === "undefined") return;
+  } catch (e) {
+    return;
+  }
+  let tries = 0;
+  const maxTries = 40;
+  const interval = setInterval(() => {
+    tries++;
+    if (document && document.querySelector && document.querySelector(".app")) {
+      clearInterval(interval);
+      // Hacemos fetch inicial para cargar juegos si hay un endpoint disponible
+      (async function fetchInitialGames() {
+        try {
+          const res = await fetch("http://localhost:5000/api/games");
+          if (!res.ok) return;
+          const data = await res.json();
+          window.dispatchEvent(new CustomEvent("gametracker:backend:games", { detail: data }));
+        } catch (err) {
+          // console.warn("Backend fetch failed (silent):", err);
+        }
+      })();
+      window.addEventListener("gametracker:backend:add", async (e) => {
+        const newGame = e.detail;
+        if (!newGame) return;
+        // intentamos POST al backend
+        try {
+          const progress = newGame.progress && String(newGame.progress).endsWith("%") ? newGame.progress : `${newGame.progress}%`;
+          const payload = { ...newGame, progress };
+          const res = await fetch("http://localhost:5000/api/games", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) throw new Error("Server responded with error");
+          const saved = await res.json();
+          window.dispatchEvent(new CustomEvent("gametracker:backend:added", { detail: saved }));
+        } catch (err) {
+          window.dispatchEvent(new CustomEvent("gametracker:backend:add-failed", { detail: newGame }));
+        }
+      });
+    } else if (tries >= maxTries) {
+      clearInterval(interval);
+    }
+  }, 200);
+})();
