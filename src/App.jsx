@@ -1,14 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./App.css";
-import { useEffect } from "react"; // <-- linea agregada para backend integration
 
-/* App.js - GameTracker frontend
-   - Sidebar always visible on desktop; collapsible on mobile via hamburger.
-   - Sections: Inicio, Mis Juegos, Progreso, Agregar, Reseñas, Configuración.
-   - Modal para agregar nuevo juego.
-   - Modal para ver detalles de un juego.
-   - Los assets (imágenes) se cargan desde /assets/... colocadas en public/assets.
-*/
+/* ------------ COMPONENTES ------------- */
 
 function Sidebar({ open, onNavigate, active, onClose }) {
   return (
@@ -19,33 +12,21 @@ function Sidebar({ open, onNavigate, active, onClose }) {
 
       <nav className="sidebar-nav">
         <ul>
-          <li className={active === "inicio" ? "active" : ""} onClick={() => { onNavigate("inicio"); onClose && onClose(); }}>
-            Inicio
-          </li>
-          <li className={active === "mis-juegos" ? "active" : ""} onClick={() => { onNavigate("mis-juegos"); onClose && onClose(); }}>
-            Mis Juegos
-          </li>
-          <li className={active === "progreso" ? "active" : ""} onClick={() => { onNavigate("progreso"); onClose && onClose(); }}>
-            Progreso
-          </li>
-          <li className={active === "agregar" ? "active" : ""} onClick={() => { onNavigate("agregar"); onClose && onClose(); }}>
-            Agregar Juego
-          </li>
-          <li className={active === "reseñas" ? "active" : ""} onClick={() => { onNavigate("reseñas"); onClose && onClose(); }}>
-            Reseñas
-          </li>
-          <li className={active === "config" ? "active" : ""} onClick={() => { onNavigate("config"); onClose && onClose(); }}>
-            Configuración
-          </li>
+          <li className={active === "inicio" ? "active" : ""} onClick={() => { onNavigate("inicio"); onClose?.(); }}>Inicio</li>
+          <li className={active === "mis-juegos" ? "active" : ""} onClick={() => { onNavigate("mis-juegos"); onClose?.(); }}>Mis Juegos</li>
+          <li className={active === "progreso" ? "active" : ""} onClick={() => { onNavigate("progreso"); onClose?.(); }}>Progreso</li>
+          <li className={active === "agregar" ? "active" : ""} onClick={() => { onNavigate("agregar"); onClose?.(); }}>Agregar Juego</li>
+          <li className={active === "reseñas" ? "active" : ""} onClick={() => { onNavigate("reseñas"); onClose?.(); }}>Reseñas</li>
+          <li className={active === "config" ? "active" : ""} onClick={() => { onNavigate("config"); onClose?.(); }}>Configuración</li>
         </ul>
       </nav>
 
       <div className="sidebar-footer">
         <div className="stats-pill">
-          <span>{/* icon placeholder */}🎮</span>
+          🎮
           <div>
-            <div className="small">All</div>
-            <div className="bold">10</div>
+            <div className="small">Total</div>
+            <div className="bold">{10}</div>
           </div>
         </div>
 
@@ -59,28 +40,32 @@ function Sidebar({ open, onNavigate, active, onClose }) {
   );
 }
 
-function GameCard({ game, onClick }) {
+function GameCard({ game, onClick, onEdit, onDelete }) {
   return (
-    <div className="game-card" onClick={() => onClick(game)}>
-      <div className="cover-wrap">
+    <div className="game-card">
+      <div className="cover-wrap" onClick={() => onClick(game)}>
         <img className="game-cover" src={game.cover} alt={game.title} />
       </div>
       <div className="game-info">
         <h3 className="game-title">{game.title}</h3>
         <p className="game-platform">{game.platform}</p>
         <div className="progress-bar">
-          <div className="progress-fill" style={{ width: game.progress }} />
+          <div className="progress-fill" style={{ width: game.progress }}></div>
         </div>
         <div className="game-meta">
-          <div className="rating">⭐ {game.rating ?? "-"}/5</div>
-          <div className="progress-text">{game.progress}</div>
+          <div>⭐ {game.rating}/5</div>
+          <div>{game.progress}</div>
+        </div>
+        <div className="card-actions">
+          <button className="btn edit-btn" onClick={() => onEdit(game)}>Editar</button>
+          <button className="btn delete-btn" onClick={() => onDelete(game._id)}>Eliminar</button>
         </div>
       </div>
     </div>
   );
 }
 
-function AddGameModal({ open, onClose, onAdd }) {
+function AddGameModal({ open, onClose, onAdd, editGame }) {
   const [form, setForm] = useState({
     title: "",
     platform: "",
@@ -90,39 +75,52 @@ function AddGameModal({ open, onClose, onAdd }) {
     review: "",
   });
 
+  useEffect(() => {
+    if (editGame) {
+      setForm({
+        title: editGame.title,
+        platform: editGame.platform,
+        progress: editGame.progress,
+        cover: editGame.cover,
+        rating: editGame.rating,
+        review: editGame.review,
+      });
+    }
+  }, [editGame]);
+
   function handleChange(e) {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
   }
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
-    // normalize progress
     let progress = form.progress.toString();
-    if (!progress.endsWith("%")) progress = progress + "%";
-    const newGame = { ...form, progress };
-    onAdd(newGame);
+    if (!progress.endsWith("%")) progress = `${progress}%`;
+    const payload = { ...form, progress };
+    await onAdd(payload, editGame?._id);
     setForm({ title: "", platform: "", progress: "0%", cover: "", rating: 3, review: "" });
     onClose();
   }
 
   if (!open) return null;
+
   return (
     <div className="modal">
       <div className="modal-content add-modal">
         <button className="close-btn" onClick={onClose}>✖</button>
-        <h3>Agregar Nuevo Juego</h3>
+        <h3>{editGame ? "Editar Juego" : "Agregar Nuevo Juego"}</h3>
         <form onSubmit={submit} className="add-form">
-          <input name="title" value={form.title} onChange={handleChange} placeholder="Título" required />
-          <input name="platform" value={form.platform} onChange={handleChange} placeholder="Plataforma (PC, Switch, Mobile...)" required />
+          <input name="title" required value={form.title} onChange={handleChange} placeholder="Título" />
+          <input name="platform" required value={form.platform} onChange={handleChange} placeholder="Plataforma" />
           <input name="progress" value={form.progress} onChange={handleChange} placeholder="Progreso (ej. 80%)" />
-          <input name="cover" value={form.cover} onChange={handleChange} placeholder="URL de la imagen (o /assets/miimagen.jpg)" required />
-          <label className="label">Puntuación (1-5)</label>
+          <input name="cover" required value={form.cover} onChange={handleChange} placeholder="URL de la imagen" />
+          <label>Puntuación (1-5)</label>
           <input name="rating" type="number" min="1" max="5" value={form.rating} onChange={handleChange} />
           <textarea name="review" value={form.review} onChange={handleChange} placeholder="Escribe una reseña breve..." />
           <div className="form-actions">
             <button type="button" className="btn ghost" onClick={onClose}>Cancelar</button>
-            <button type="submit" className="btn primary">Agregar Juego</button>
+            <button type="submit" className="btn primary">{editGame ? "Guardar Cambios" : "Agregar"}</button>
           </div>
         </form>
       </div>
@@ -140,169 +138,102 @@ function DetailModal({ game, onClose }) {
         <h2>{game.title}</h2>
         <p className="muted">{game.platform}</p>
         <div className="detail-meta">
-          <div>⭐ {game.rating ?? "-"}/5</div>
+          <div>⭐ {game.rating}/5</div>
           <div>{game.progress}</div>
         </div>
-        <p className="review">{game.review || "Sin reseña"}</p>
+        <p>{game.review || "Sin reseña"}</p>
       </div>
     </div>
   );
 }
 
-export default function App() {
-  // initial 10 games (use public/assets/... or full URLs)
-  const initialGames = [
-    { 
-      title: "Free Fire", 
-      platform: "Mobile", 
-      progress: "85%", 
-      cover: "https://cdn.hobbyconsolas.com/sites/navi.axelspringer.es/public/media/image/2021/04/free-fire-codigos-gratis-2290285.jpg?tf=1200x1200", 
-      rating: 4, 
-      review: "Adictivo y competitivo." 
-    },
-    { 
-      title: "Fortnite", 
-      platform: "PC", 
-      progress: "90%", 
-      cover: "https://cdn.hobbyconsolas.com/sites/navi.axelspringer.es/public/media/image/2018/05/fortnite-cover.jpg", 
-      rating: 5, 
-      review: "Excelente jugabilidad y gráficos." 
-    },
-    { 
-      title: "Roblox", 
-      platform: "PC", 
-      progress: "70%", 
-      cover: "https://static0.makeuseofimages.com/wordpress/wp-content/uploads/2020/11/roblox.jpg", 
-      rating: 3, 
-      review: "Muy creativo para niños y jóvenes." 
-    },
-    { 
-      title: "Indiana Jones and the Great Circle", 
-      platform: "PC", 
-      progress: "100%", 
-      cover: "https://cdn.sanity.io/images/ko0ytj5o/production/cfccdef8dcab003a3d39417bf627f15d749aa0c6-1524x1958.png?w=1024", 
-      rating: 5, 
-      review: "Historia impresionante." 
-    },
-    { 
-      title: "Hades II", 
-      platform: "PC", 
-      progress: "94%", 
-      cover: "https://assets.nintendo.com/image/upload/f_auto/q_auto/dpr_1.5/c_scale,w_400/store/software/switch2/70010000105526/75473d99ae0d87abda2bf0979c0886a78a1ec9debd46fa77b6c5f19b9c7ab175", 
-      rating: 5, 
-      review: "Desafiante y visualmente espectacular." 
-    },
-    { 
-      title: "The Legend of Zelda: Tears of the Kingdom", 
-      platform: "Switch", 
-      progress: "45%", 
-      cover: "https://phantom.estaticos-marca.com/4686023be74228acb58e446e4c5f3ef1/resize/828/f/jpg/assets/multimedia/imagenes/2024/09/26/17273458124026.jpg", 
-      rating: 4, 
-      review: "Una obra maestra de aventura." 
-    },
-    { 
-      title: "Call of Duty: Warzone", 
-      platform: "PC", 
-      progress: "60%", 
-      cover: "https://i0.wp.com/seven.com.ec/wp-content/uploads/2022/03/0001-call_of_duty_warzone-seven_ecuador-videojuegos-gamers-juegos-0001.jpg?fit=1920%2C1080&ssl=1", 
-      rating: 4, 
-      review: "Acción intensa en cada partida." 
-    },
-    { 
-      title: "Minecraft", 
-      platform: "PC", 
-      progress: "80%", 
-      cover: "https://image.api.playstation.com/vulcan/ap/rnd/202407/0401/670c294ded3baf4fa11068db2ec6758c63f7daeb266a35a1.png", 
-      rating: 5, 
-      review: "Creatividad sin límites." 
-    },
-    { 
-      title: "Valorant", 
-      platform: "PC", 
-      progress: "75%", 
-      cover: "https://assets-prd.ignimgs.com/2021/12/21/valorant-1640045685890.jpg?crop=1%3A1%2Csmart&width=348&height=348&format=jpg&auto=webp&quality=80", 
-      rating: 4, 
-      review: "Competitivo y adictivo." 
-    },
-    { 
-      title: "League of Legends", 
-      platform: "PC", 
-      progress: "50%", 
-      cover: "https://fotos.perfil.com/2022/02/01/trim/1140/641/conoce-todos-los-detalles-acerca-de-lol-y-enterate-como-se-juega-1306879.jpg", 
-      rating: 3, 
-      review: "Estrategia y trabajo en equipo." 
-    }
-  ];
+/* ------------ APP PRINCIPAL ------------- */
 
-  const [games, setGames] = useState(initialGames);
-  const [sidebarOpen, setSidebarOpen] = useState(true); // visible by default (desktop)
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+export default function App() {
+  const [games, setGames] = useState([]);
   const [section, setSection] = useState("mis-juegos");
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null);
+  const [editGame, setEditGame] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  function handleAddGame(newGame) {
-    const progress = newGame.progress && String(newGame.progress).endsWith("%") ? newGame.progress : `${newGame.progress}%`;
-    setGames(prev => [...prev, { ...newGame, progress }]);
+  useEffect(() => {
+    async function loadGames() {
+      try {
+        const res = await fetch("http://localhost:5000/api/games");
+        const data = await res.json();
+        setGames(data);
+      } catch (err) {
+        console.error("Error cargando juegos", err);
+      }
+    }
+    loadGames();
+  }, []);
+
+  async function handleAddGame(game, id) {
+    try {
+      if (id) {
+        const res = await fetch(`http://localhost:5000/api/games/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(game),
+        });
+        const updated = await res.json();
+        setGames(prev => prev.map(g => g._id === id ? updated : g));
+      } else {
+        const res = await fetch("http://localhost:5000/api/games", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(game),
+        });
+        const saved = await res.json();
+        setGames(prev => [...prev, saved]);
+      }
+    } catch (err) {
+      console.error("Error guardando juego", err);
+    }
+  }
+
+  async function handleDeleteGame(id) {
+    if (!window.confirm("¿Estás segura de eliminar este juego?")) return;
+    try {
+      await fetch(`http://localhost:5000/api/games/${id}`, { method: "DELETE" });
+      setGames(prev => prev.filter(g => g._id !== id));
+    } catch (err) {
+      console.error("Error eliminando juego", err);
+    }
   }
 
   const stats = {
     total: games.length,
-    avgRating: (games.reduce((acc, g) => acc + Number(g.rating || 0), 0) / games.length).toFixed(1),
-    mostComplete: (games.reduce((max, g) => (parseInt(g.progress) > parseInt(max.progress) ? g : max), games[0]) || {}).title
+    avgRating: games.length ? (games.reduce((a, g) => a + g.rating, 0) / games.length).toFixed(1) : 0,
+    mostComplete: games.length ? games.reduce((max, g) => parseInt(g.progress) > parseInt(max.progress) ? g : max, games[0]).title : "-",
   };
 
   return (
     <div className="app">
-      <button
-        className="hamburger"
-        aria-label="Abrir menú"
-        onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-      >
-        ☰
-      </button>
+      <button className="hamburger" onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}>☰</button>
 
       <Sidebar
         open={sidebarOpen || mobileSidebarOpen}
-        onNavigate={(s) => {
-          setSection(s);
-          setMobileSidebarOpen(false);
-          if (s === "agregar") setAddModalOpen(true);
-        }}
         active={section}
         onClose={() => setMobileSidebarOpen(false)}
+        onNavigate={(s) => {
+          setSection(s);
+          if (s === "agregar") { setEditGame(null); setAddModalOpen(true); }
+        }}
       />
 
-      <main
-        className="main-content"
-        style={{ width: "calc(100% - 280px)", height: "100vh", overflowY: "auto" }}
-      >
+      <main className="main-content">
         {section === "inicio" && (
           <section>
-            <div className="hero">
-              <div>
-                <h2>Bienvenida a Game Tracker</h2>
-                <p>Gestiona tus juegos, registra progreso, escribe reseñas y puntúa tus favoritos.</p>
-                <div className="hero-actions">
-                  <button className="btn primary" onClick={() => { setSection("mis-juegos"); }}>Ver Mis Juegos</button>
-                  <button className="btn ghost" onClick={() => { setAddModalOpen(true); }}>Agregar Juego</button>
-                </div>
-              </div>
-
-              <div className="summary-cards">
-                <div className="card small">
-                  <div>Total</div>
-                  <div className="big">{games.length}</div>
-                </div>
-                <div className="card small">
-                  <div>Puntuación Promedio</div>
-                  <div className="big">⭐ {stats.avgRating}</div>
-                </div>
-                <div className="card small">
-                  <div>Mayor progreso</div>
-                  <div className="big">{stats.mostComplete}</div>
-                </div>
-              </div>
+            <h2>Bienvenida a Game Tracker</h2>
+            <p>Gestiona tus juegos guardados en MongoDB.</p>
+            <div className="summary-cards">
+              <div className="card small">Total: {stats.total}</div>
+              <div className="card small">⭐ {stats.avgRating}</div>
+              <div className="card small">Más avanzado: {stats.mostComplete}</div>
             </div>
           </section>
         )}
@@ -311,8 +242,14 @@ export default function App() {
           <section>
             <h2>Mis Juegos</h2>
             <div className="game-grid">
-              {games.map((g, i) => (
-                <GameCard key={i} game={g} onClick={(game) => setSelectedGame(game)} />
+              {games.map(g => (
+                <GameCard 
+                  key={g._id} 
+                  game={g} 
+                  onClick={setSelectedGame} 
+                  onEdit={(g) => { setEditGame(g); setAddModalOpen(true); }}
+                  onDelete={handleDeleteGame}
+                />
               ))}
             </div>
           </section>
@@ -322,18 +259,15 @@ export default function App() {
           <section>
             <h2>Progreso</h2>
             <div className="progress-list">
-              {games.map((g, i) => (
-                <div className="progress-item" key={i}>
+              {games.map(g => (
+                <div className="progress-item" key={g._id}>
                   <img src={g.cover} alt={g.title} />
-                  <div className="pi-body">
+                  <div>
                     <h4>{g.title}</h4>
                     <div className="progress-bar small">
-                      <div className="progress-fill" style={{ width: g.progress }} />
+                      <div className="progress-fill" style={{ width: g.progress }}></div>
                     </div>
-                    <div className="pi-meta">
-                      <span>{g.progress}</span>
-                      <span>⭐ {g.rating}/5</span>
-                    </div>
+                    <span>{g.progress}</span>
                   </div>
                 </div>
               ))}
@@ -344,8 +278,7 @@ export default function App() {
         {section === "agregar" && (
           <section>
             <h2>Agregar Juego</h2>
-            <p>Puedes agregar un juego usando el botón o el formulario rápido.</p>
-            <button className="btn primary" onClick={() => setAddModalOpen(true)}>Abrir formulario</button>
+            <button className="btn primary" onClick={() => { setEditGame(null); setAddModalOpen(true); }}>Abrir Formulario</button>
           </section>
         )}
 
@@ -353,95 +286,22 @@ export default function App() {
           <section>
             <h2>Reseñas</h2>
             <div className="reviews-grid">
-              {games.map((g, i) => (
-                <div className="review-card" key={i}>
-                  <div className="rc-head">
-                    <img src={g.cover} alt={g.title} />
-                    <div>
-                      <h4>{g.title}</h4>
-                      <div className="muted">{g.platform} • ⭐ {g.rating}/5</div>
-                    </div>
-                  </div>
-                  <p className="rc-body">{g.review || "Sin reseña"}</p>
+              {games.map(g => (
+                <div className="review-card" key={g._id}>
+                  <img src={g.cover} alt={g.title} />
+                  <h4>{g.title}</h4>
+                  <p>{g.review || "Sin reseña"}</p>
                 </div>
               ))}
             </div>
           </section>
         )}
-
-        {section === "config" && (
-          <section>
-            <h2>Configuración</h2>
-            <p>Aquí puedes ajustar preferencias (tema, notificaciones y más).</p>
-            <div className="settings">
-              <label><input type="checkbox" defaultChecked /> Notificaciones activas</label>
-              <label><input type="checkbox" /> Guardar automáticamente (backend)</label>
-            </div>
-          </section>
-        )}
       </main>
 
-      <footer className="page-footer">
-        <span>Creado por Alina Ibarra & Valeria Jugacho — Jóvenes Creativos 2025</span>
-      </footer>
-
-      <AddGameModal
-        open={addModalOpen}
-        onClose={() => setAddModalOpen(false)}
-        onAdd={(g) => {
-          handleAddGame(g);
-          setSection("mis-juegos");
-        }}
-      />
-
+      <AddGameModal open={addModalOpen} onClose={() => setAddModalOpen(false)} onAdd={handleAddGame} editGame={editGame} />
       <DetailModal game={selectedGame} onClose={() => setSelectedGame(null)} />
     </div>
   );
 }
-(function attachBackendIntegration() {
-  try {
-    if (typeof window === "undefined" || typeof fetch === "undefined") return;
-  } catch (e) {
-    return;
-  }
-  let tries = 0;
-  const maxTries = 40;
-  const interval = setInterval(() => {
-    tries++;
-    if (document && document.querySelector && document.querySelector(".app")) {
-      clearInterval(interval);
-      // Hacemos fetch inicial para cargar juegos si hay un endpoint disponible
-      (async function fetchInitialGames() {
-        try {
-          const res = await fetch("http://localhost:5000/api/games");
-          if (!res.ok) return;
-          const data = await res.json();
-          window.dispatchEvent(new CustomEvent("gametracker:backend:games", { detail: data }));
-        } catch (err) {
-          // console.warn("Backend fetch failed (silent):", err);
-        }
-      })();
-      window.addEventListener("gametracker:backend:add", async (e) => {
-        const newGame = e.detail;
-        if (!newGame) return;
-        // intentamos POST al backend
-        try {
-          const progress = newGame.progress && String(newGame.progress).endsWith("%") ? newGame.progress : `${newGame.progress}%`;
-          const payload = { ...newGame, progress };
-          const res = await fetch("http://localhost:5000/api/games", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          if (!res.ok) throw new Error("Server responded with error");
-          const saved = await res.json();
-          window.dispatchEvent(new CustomEvent("gametracker:backend:added", { detail: saved }));
-        } catch (err) {
-          window.dispatchEvent(new CustomEvent("gametracker:backend:add-failed", { detail: newGame }));
-        }
-      });
-    } else if (tries >= maxTries) {
-      clearInterval(interval);
-    }
-  }, 200);
-})();
+
+
